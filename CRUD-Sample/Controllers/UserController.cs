@@ -1,4 +1,4 @@
-﻿using CRUD_Sample.Data;
+using CRUD_Sample.Data;
 using CRUD_Sample.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,7 +18,7 @@ namespace CRUD_Sample.Controllers
         public ActionResult<User> GetUserById(int id)
         {
             var user = userRepository.GetUserById(id);
-            if(user == null)
+            if (user == null)
             {
                 return NotFound();
             }
@@ -28,7 +28,7 @@ namespace CRUD_Sample.Controllers
         [HttpPost]
         public ActionResult<User> CreateUser(User user)
         {
-            if(!ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
@@ -40,7 +40,7 @@ namespace CRUD_Sample.Controllers
         [HttpPut("{id}")]
         public ActionResult UpdateUser(int id, User updatedUser)
         {
-            if(!ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }

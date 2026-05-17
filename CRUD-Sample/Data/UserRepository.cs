@@ -1,4 +1,4 @@
-﻿using CRUD_Sample.Models;
+using CRUD_Sample.Models;
 
 namespace CRUD_Sample.Data
 {
@@ -24,7 +24,7 @@ namespace CRUD_Sample.Data
         public void UpdateUser(int id, User updatedUser)
         {
             var existingUser = _users.FirstOrDefault(u => u.Id == id);
-            if(existingUser != null)
+            if (existingUser != null)
             {
                 existingUser.FirstName = updatedUser.FirstName;
                 existingUser.LastName = updatedUser.LastName;
@@ -35,7 +35,7 @@ namespace CRUD_Sample.Data
         public void DeleteUser(int id)
         {
             var userToRemove = _users.FirstOrDefault(u => u.Id == id);
-            if(userToRemove != null)
+            if (userToRemove != null)
             {
                 _users.Remove(userToRemove);
             }
