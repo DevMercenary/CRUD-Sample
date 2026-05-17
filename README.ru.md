@@ -2,11 +2,12 @@
 
 # CRUD-Sample
 
-**Компактный пример ASP.NET Core с чистым REST-дизайном**
+**ASP.NET Core образец production-формы — clean architecture, EF Core, валидация, ProblemDetails**
 
 [![CI](https://github.com/DevMercenary/CRUD-Sample/actions/workflows/ci.yml/badge.svg)](https://github.com/DevMercenary/CRUD-Sample/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![EF Core](https://img.shields.io/badge/EF_Core-10-7c3aed)](https://learn.microsoft.com/ef/core/)
 
 [English version](README.md)
 
@@ -14,93 +15,112 @@
 
 ---
 
-Небольшое, но грамотно структурированное Web API на ASP.NET Core c CRUD-операциями над
-ресурсом `User`. Проект задумывался как образец идиоматичного ASP.NET Core — контроллеры
-с DI, биндинг и валидация моделей, OpenAPI и корректные HTTP-коды ответов.
+Компактное ASP.NET Core Web API, показывающее как выглядит *настоящий* CRUD-сервис:
+слоистая архитектура, EF Core поверх SQLite, FluentValidation, RFC 7807 ProblemDetails,
+пагинация, OpenAPI, интеграционные тесты на `WebApplicationFactory`, Docker-образ.
+Всё помещается в два production-проекта + проект тестов — читается за один присест.
 
-## Возможности
+## Что показано
 
-- **Атрибутно-маршрутизируемый `ApiController`** с документацией на уровне действий.
-- **Репозиторий, инжектируемый через конструктор**, регистрируется через встроенный DI.
-- **Валидация через data-annotations** (`[Required]`, `[EmailAddress]`) +
-  автоматический `400 Bad Request` от `ModelState`.
-- **OpenAPI** через Swashbuckle и Swagger UI в режиме разработки.
-- **Корректные коды ответов**: `200 OK`, `201 Created` c `Location`, `204 No Content`,
-  `404 Not Found`, `400 Bad Request`.
-
-## Эндпоинты
-
-| Метод    | Маршрут              | Описание                | Ответы             |
-|----------|----------------------|-------------------------|--------------------|
-| `GET`    | `/api/users`         | Список пользователей    | `200 OK`           |
-| `GET`    | `/api/users/{id}`    | Пользователь по id      | `200 OK` / `404`   |
-| `POST`   | `/api/users`         | Создать пользователя    | `201 Created`      |
-| `PUT`    | `/api/users/{id}`    | Обновить пользователя   | `204 No Content`   |
-| `DELETE` | `/api/users/{id}`    | Удалить пользователя    | `204 No Content`   |
-
-### Схема User
-
-```jsonc
-{
-  "id":        12,
-  "firstName": "Ada",
-  "lastName":  "Lovelace",
-  "email":     "ada@example.com"
-}
-```
-
-`email` обязателен и должен быть корректным e-mail; `firstName` и `lastName` обязательны.
-
-## Быстрый старт
-
-```bash
-dotnet restore
-dotnet run --project CRUD-Sample
-```
-
-Откройте <http://localhost:5000/swagger> для просмотра API.
+- **Слоистая архитектура** (`Core/{Domain, Application, Infrastructure}` + `Api`). Api
+  зависит только от Application абстракций; EF Core упоминается только в Infrastructure.
+- **Domain primitives**: value object `Email` гарантирует валидность при создании.
+- **Sealed entity c private setters и factory-методом** — невалидный `User` создать
+  невозможно.
+- **Use-case сервисы** (`IUserService` + `UserResult` discriminated union из records)
+  вместо контроллеров, тянущих репозиторий напрямую.
+- **FluentValidation** в model binding — авто-`400` + ValidationProblemDetails.
+- **RFC 7807 ProblemDetails** на каждую ошибку (`404`, `409`, `400`).
+- **EF Core 10 + SQLite**, `Email` через `HasConversion`.
+- **Compile-time логирование** (`[LoggerMessage]` source generator).
+- **Нативный OpenAPI** (`Microsoft.AspNetCore.OpenApi`) + UI через **Scalar**.
+- **Health checks** включая DbContext liveness.
+- **Интеграционные тесты на `WebApplicationFactory`** c EF in-memory.
+- **Minimal API endpoint** рядом с контроллером (`/api/v1/users/count`) — сравнить
+  эргономику обоих стилей.
+- **Dockerfile** (multistage, .NET 10) + **docker-compose** c SQLite-volume.
 
 ## Структура проекта
 
 ```
 CRUD-Sample/
-├── Controllers/
-│   └── UserController.cs    # ApiController, маршруты /api/users
-├── Data/
-│   └── UserRepository.cs    # Хранилище (in-memory)
-├── Models/
-│   └── User.cs              # Модель c аннотационной валидацией
-├── Program.cs               # Composition root, Swagger
-├── appsettings.json         # Конфигурация
-└── CRUD-Sample.csproj
+├── src/
+│   ├── CRUD-Sample.Api/                ASP.NET Core хост
+│   │   ├── Controllers/UsersController.cs
+│   │   ├── ValidationExceptionHandler.cs
+│   │   ├── Program.cs                  composition root
+│   │   └── appsettings*.json
+│   └── CRUD-Sample.Core/
+│       ├── Domain/                     User, Email value object, IUserRepository, PageRequest
+│       ├── Application/                DTOs, validators, IUserService, UserService
+│       └── Infrastructure/             AppDbContext, EfUserRepository, DI-extension
+└── tests/
+    └── CRUD-Sample.Tests/              WebApplicationFactory + xUnit + FluentAssertions
 ```
 
-## Технологический стек
+## API
 
-| Слой        | Библиотека                                                                          |
-|-------------|-------------------------------------------------------------------------------------|
-| Framework   | ASP.NET Core 10                                                                     |
-| OpenAPI     | [Swashbuckle.AspNetCore](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) |
-| Хранилище   | In-memory (`List<User>`)                                                            |
+| Метод    | Маршрут                        | Описание                                    | Ответы                   |
+|----------|--------------------------------|---------------------------------------------|--------------------------|
+| `GET`    | `/api/v1/users`                | Пагинированный список (`page`, `pageSize`, `sortBy`, `desc`) | `200`     |
+| `GET`    | `/api/v1/users/{id}`           | Один пользователь                           | `200` / `404`            |
+| `POST`   | `/api/v1/users`                | Создать пользователя                        | `201` / `400` / `409`    |
+| `PUT`    | `/api/v1/users/{id}`           | Обновить пользователя                       | `200` / `400` / `404` / `409` |
+| `DELETE` | `/api/v1/users/{id}`           | Удалить пользователя                        | `204` / `404`            |
+| `GET`    | `/api/v1/users/count`          | Minimal-API счётчик                         | `200`                    |
+| `GET`    | `/health`                      | Liveness + DbContext check                  | `200` / `503`            |
+| `GET`    | `/openapi/v1.json`             | OpenAPI документ                            | `200`                    |
+| `GET`    | `/scalar/v1`                   | Интерактивный API explorer (только dev)     | `200`                    |
+
+### Схема User
+
+```jsonc
+{
+  "id":         12,
+  "firstName":  "Ada",
+  "lastName":   "Lovelace",
+  "email":      "ada@example.com",
+  "createdAt":  "2026-05-17T07:14:48Z"
+}
+```
+
+`email` обязателен, должен быть корректным e-mail, уникален. `firstName` и `lastName`
+обязательны, максимум 100 символов.
+
+## Быстрый старт
+
+```bash
+dotnet restore
+dotnet run --project src/CRUD-Sample.Api
+```
+
+Откройте <http://localhost:5080/scalar/v1>.
+
+### Docker
+
+```bash
+docker compose up --build
+# API на http://localhost:8080
+```
 
 ## Разработка
 
 ```bash
 dotnet format --verify-no-changes        # проверка стиля
 dotnet build --configuration Release     # сборка
-dotnet test                              # тесты
+dotnet test                              # 10 интеграционных тестов
 ```
 
-## Roadmap
+## Технологический стек
 
-Репозиторий планомерно расширяется до полноценного «production-shaped» образца:
-
-- Разделение по слоям (`Api` / `Application` / `Domain` / `Infrastructure`).
-- EF Core 9 + SQLite c миграциями.
-- FluentValidation и RFC 7807 ProblemDetails для ошибок.
-- Версионирование API, пагинация, фильтрация и сортировка.
-- Интеграционные тесты на `WebApplicationFactory`.
-- Dockerfile и `docker-compose.yml`.
+| Слой             | Библиотека                                                                                |
+|------------------|-------------------------------------------------------------------------------------------|
+| Framework        | ASP.NET Core 10                                                                           |
+| Хранилище        | EF Core 10 + SQLite                                                                       |
+| Валидация        | [FluentValidation](https://docs.fluentvalidation.net/) + AspNetCore integration          |
+| OpenAPI          | `Microsoft.AspNetCore.OpenApi` + [Scalar](https://github.com/scalar/scalar)              |
+| Health checks    | `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`                      |
+| Тесты            | xUnit + FluentAssertions + `Microsoft.AspNetCore.Mvc.Testing` (WebApplicationFactory)    |
 
 ## Лицензия
 
